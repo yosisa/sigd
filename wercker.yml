@@ -1,0 +1,32 @@
+box: tcnksm/gox
+build:
+  steps:
+    - setup-go-workspace
+    - script:
+        name: go get
+        code: |
+          go version
+          go get -t ./...
+    - script:
+        name: gox
+        code: |
+          gox -os="linux darwin" -arch="amd64" -output "${WERCKER_OUTPUT_DIR}/pkg/sigd-pre-release-{{.OS}}_{{.Arch}}/{{.Dir}}"
+    - tcnksm/zip:
+        input: $WERCKER_OUTPUT_DIR/pkg
+        output: $WERCKER_OUTPUT_DIR/dist
+    - script:
+        name: make tarball
+        code: |
+          mkdir -p $WERCKER_OUTPUT_DIR/dist
+          for target in $(find $WERCKER_OUTPUT_DIR/pkg -mindepth 1 -maxdepth 1 -type d); do pushd $target && tar czf $WERCKER_OUTPUT_DIR/dist/$(basename $target).tar.gz * && popd; done
+          pushd $WERCKER_OUTPUT_DIR/dist
+          shasum * > SHASUMS
+          popd
+          ls -l $WERCKER_OUTPUT_DIR/dist
+deploy:
+  steps:
+    - tcnksm/ghr:
+        token: $GITHUB_TOKEN
+        input: dist
+        pre_release: true
+        replace: true
